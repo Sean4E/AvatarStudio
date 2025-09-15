@@ -638,6 +638,19 @@
             font-size: 13px;
         }
 
+        .avatar-button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .avatar-button-group button {
+            flex: 1;
+            padding: 10px;
+            margin: 0;
+            font-size: 13px;
+        }
+
         .blendshape-control {
             display: flex;
             align-items: center;
@@ -762,7 +775,10 @@
                 <button id="createAvatarBtn">Create/Reload Avatar</button>
                 <iframe id="rpmFrame" style="display: none;" allow="camera *; microphone *"></iframe>
                 <input type="url" id="avatarUrl" placeholder="Avatar URL will appear here">
-                <button id="loadAvatarBtn" class="secondary">Load Avatar</button>
+                <div class="avatar-button-group">
+                    <button id="loadAvatarBtn" class="secondary">Load Avatar</button>
+                    <button id="downloadBaseBtn" class="secondary" disabled>Download Base</button>
+                </div>
                 <p class="info-text">Avatar with ARKit blend shapes & Oculus visemes</p>
             </div>
 
@@ -877,10 +893,45 @@
                 
                 <div class="slider-group">
                     <div class="slider-label">
-                        <span>Smoothing Factor</span>
-                        <span class="slider-value" id="smoothingValue">0.8</span>
+                        <span>Smoothing</span>
+                        <span class="slider-value" id="smoothingValue">0.7</span>
                     </div>
-                    <input type="range" id="smoothing" min="0" max="1" step="0.05" value="0.8">
+                    <input type="range" id="smoothing" min="0" max="0.95" step="0.05" value="0.7">
+                </div>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Expression Strength</span>
+                        <span class="slider-value" id="expressionStrengthValue">1.0</span>
+                    </div>
+                    <input type="range" id="expressionStrength" min="0" max="2" step="0.1" value="1">
+                </div>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Head Motion</span>
+                        <span class="slider-value" id="headMotionValue">1.0</span>
+                    </div>
+                    <input type="range" id="headMotion" min="0" max="2" step="0.1" value="1">
+                </div>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Stabilization</span>
+                        <span class="slider-value" id="stabilizationValue">0.15</span>
+                    </div>
+                    <input type="range" id="stabilization" min="0" max="0.5" step="0.05" value="0.15">
+                </div>
+                
+                <!-- Quick Presets -->
+                <label style="margin-top: 15px; margin-bottom: 10px; display: block;">Quick Presets</label>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 15px;">
+                    <button class="secondary" onclick="applyPreset('smooth')">Smooth</button>
+                    <button class="secondary" onclick="applyPreset('responsive')">Responsive</button>
+                    <button class="secondary" onclick="applyPreset('natural')">Natural</button>
+                    <button class="secondary" onclick="applyPreset('expressive')">Expressive</button>
+                    <button class="secondary" onclick="applyPreset('stable')">Stable</button>
+                    <button class="secondary" onclick="applyPreset('reset')">Reset</button>
                 </div>
 
                 <div class="collapsible" onclick="toggleSection('expressions')">
@@ -1273,7 +1324,6 @@
                 <div class="export-group">
                     <button id="exportVideoBtn" class="secondary" disabled>Export Video</button>
                     <button id="exportGLBBtn" class="secondary" disabled>Export GLB</button>
-                    <button id="exportFBXBtn" class="secondary" disabled>Export FBX</button>
                 </div>
             </div>
 
@@ -1366,7 +1416,9 @@
         let smoothedBlendShapes = {};
         let smoothedRotation = { x: 0, y: 0, z: 0 };
         let blendshapeStrengths = {};
-        let smoothing = 0.8;
+        let smoothing = 0.7;
+        let expressionStrength = 1.0;
+        let stabilization = 0.15;
         let headRotationStrength = 1.0;
         let neckMotionStrength = 0.2;
         let bodyMotionStrength = 0.1;
@@ -1472,7 +1524,7 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            // Apply blendshapes with improved smoothing
+            // Apply blendshapes with proper exponential smoothing
             if (blendshapes.length > 0 && headMesh.length > 0) {
                 blendshapes.forEach(element => {
                     if (element.categoryName === '_neutral') return;
@@ -1485,8 +1537,19 @@
                         smoothedBlendShapes[key] = 0;
                     }
                     
-                    // Apply exponential smoothing
-                    smoothedBlendShapes[key] = smoothedBlendShapes[key] * smoothing + targetValue * (1 - smoothing);
+                    // Apply proper exponential smoothing (lerp)
+                    // Higher smoothing = smoother but less responsive
+                    const targetSmoothing = smoothing + (stabilization * 0.5); // Stabilization adds extra smoothing
+                    const effectiveSmoothing = Math.min(0.95, targetSmoothing);
+                    
+                    // Only update if change is significant (stabilization threshold)
+                    const delta = Math.abs(targetValue - smoothedBlendShapes[key]);
+                    if (delta < stabilization * 0.1 && targetValue < 0.1) {
+                        // Skip tiny movements when stabilization is high
+                        smoothedBlendShapes[key] *= 0.95; // Gradually decay to zero
+                    } else {
+                        smoothedBlendShapes[key] = smoothedBlendShapes[key] * effectiveSmoothing + targetValue * (1 - effectiveSmoothing);
+                    }
                     
                     headMesh.forEach(mesh => {
                         const index = mesh.morphTargetDictionary[element.categoryName];
@@ -1504,12 +1567,18 @@
             applyFACS();
             applyExpressions();
             
-            // Apply head rotation with improved smoothing
+            // Apply head rotation with FIXED smoothing (no multiplication bug)
             if (rotation && bones.Head) {
-                const rotSmooth = smoothing * 1.2;
-                smoothedRotation.x = smoothedRotation.x * rotSmooth + rotation.x * (1 - rotSmooth);
-                smoothedRotation.y = smoothedRotation.y * rotSmooth + rotation.y * (1 - rotSmooth);
-                smoothedRotation.z = smoothedRotation.z * rotSmooth + rotation.z * (1 - rotSmooth);
+                // Use same smoothing factor for rotation as blendshapes
+                // This prevents the spinning issue
+                smoothedRotation.x = smoothedRotation.x * smoothing + rotation.x * (1 - smoothing);
+                smoothedRotation.y = smoothedRotation.y * smoothing + rotation.y * (1 - smoothing);
+                smoothedRotation.z = smoothedRotation.z * smoothing + rotation.z * (1 - smoothing);
+                
+                // Clamp rotation values to prevent accumulation
+                smoothedRotation.x = Math.max(-Math.PI, Math.min(Math.PI, smoothedRotation.x));
+                smoothedRotation.y = Math.max(-Math.PI, Math.min(Math.PI, smoothedRotation.y));
+                smoothedRotation.z = Math.max(-Math.PI, Math.min(Math.PI, smoothedRotation.z));
                 
                 bones.Head.rotation.set(
                     smoothedRotation.x * headRotationStrength,
@@ -1555,7 +1624,41 @@
             }
         }
 
-        // Initialize MediaPipe Face Landmarker
+        // Apply motion presets
+        window.applyPreset = function(preset) {
+            const presets = {
+                smooth: { smoothing: 0.85, expression: 0.8, headMotion: 0.7, stabilization: 0.25 },
+                responsive: { smoothing: 0.3, expression: 1.2, headMotion: 1.2, stabilization: 0.05 },
+                natural: { smoothing: 0.7, expression: 1.0, headMotion: 1.0, stabilization: 0.15 },
+                expressive: { smoothing: 0.5, expression: 1.5, headMotion: 1.3, stabilization: 0.1 },
+                stable: { smoothing: 0.9, expression: 0.9, headMotion: 0.8, stabilization: 0.35 },
+                reset: { smoothing: 0.7, expression: 1.0, headMotion: 1.0, stabilization: 0.15 }
+            };
+            
+            const settings = presets[preset];
+            if (settings) {
+                document.getElementById('smoothing').value = settings.smoothing;
+                document.getElementById('smoothingValue').textContent = settings.smoothing;
+                smoothing = settings.smoothing;
+                
+                document.getElementById('expressionStrength').value = settings.expression;
+                document.getElementById('expressionStrengthValue').textContent = settings.expression;
+                expressionStrength = settings.expression;
+                
+                document.getElementById('headMotion').value = settings.headMotion;
+                document.getElementById('headMotionValue').textContent = settings.headMotion;
+                headRotationStrength = settings.headMotion;
+                
+                document.getElementById('stabilization').value = settings.stabilization;
+                document.getElementById('stabilizationValue').textContent = settings.stabilization;
+                stabilization = settings.stabilization;
+                
+                updateStatus(`Applied ${preset} preset`, 'success');
+            }
+        }
+
+        // Initialize MediaPipe Face Landmarker with matching version
+        // Initialize MediaPipe Face Landmarker with matching version
         async function initFaceLandmarker() {
             const filesetResolver = await FilesetResolver.forVisionTasks(
                 "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
@@ -1582,6 +1685,75 @@
             console.log('Face Landmarker initialized');
         }
 
+        // MediaPipe to ARKit blendshape mapping
+        const blendshapeMapping = {
+            // Eyes
+            'eyeBlinkLeft': 'eyeBlink_L',
+            'eyeBlinkRight': 'eyeBlink_R',
+            'eyeLookDownLeft': 'eyeLookDown_L',
+            'eyeLookDownRight': 'eyeLookDown_R',
+            'eyeLookInLeft': 'eyeLookIn_L',
+            'eyeLookInRight': 'eyeLookIn_R',
+            'eyeLookOutLeft': 'eyeLookOut_L',
+            'eyeLookOutRight': 'eyeLookOut_R',
+            'eyeLookUpLeft': 'eyeLookUp_L',
+            'eyeLookUpRight': 'eyeLookUp_R',
+            'eyeSquintLeft': 'eyeSquint_L',
+            'eyeSquintRight': 'eyeSquint_R',
+            'eyeWideLeft': 'eyeWide_L',
+            'eyeWideRight': 'eyeWide_R',
+            
+            // Eyebrows
+            'browDownLeft': 'browDown_L',
+            'browDownRight': 'browDown_R',
+            'browInnerUp': 'browInnerUp',
+            'browOuterUpLeft': 'browOuterUp_L',
+            'browOuterUpRight': 'browOuterUp_R',
+            
+            // Cheeks
+            'cheekPuff': 'cheekPuff',
+            'cheekSquintLeft': 'cheekSquint_L',
+            'cheekSquintRight': 'cheekSquint_R',
+            
+            // Jaw
+            'jawForward': 'jawForward',
+            'jawLeft': 'jawLeft',
+            'jawRight': 'jawRight',
+            'jawOpen': 'jawOpen',
+            
+            // Mouth
+            'mouthClose': 'mouthClose',
+            'mouthDimpleLeft': 'mouthDimple_L',
+            'mouthDimpleRight': 'mouthDimple_R',
+            'mouthFrownLeft': 'mouthFrown_L',
+            'mouthFrownRight': 'mouthFrown_R',
+            'mouthFunnel': 'mouthFunnel',
+            'mouthLeft': 'mouthLeft',
+            'mouthLowerDownLeft': 'mouthLowerDown_L',
+            'mouthLowerDownRight': 'mouthLowerDown_R',
+            'mouthPressLeft': 'mouthPress_L',
+            'mouthPressRight': 'mouthPress_R',
+            'mouthPucker': 'mouthPucker',
+            'mouthRight': 'mouthRight',
+            'mouthRollLower': 'mouthRollLower',
+            'mouthRollUpper': 'mouthRollUpper',
+            'mouthShrugLower': 'mouthShrugLower',
+            'mouthShrugUpper': 'mouthShrugUpper',
+            'mouthSmileLeft': 'mouthSmile_L',
+            'mouthSmileRight': 'mouthSmile_R',
+            'mouthStretchLeft': 'mouthStretch_L',
+            'mouthStretchRight': 'mouthStretch_R',
+            'mouthUpperUpLeft': 'mouthUpperUp_L',
+            'mouthUpperUpRight': 'mouthUpperUp_R',
+            
+            // Nose
+            'noseSneerLeft': 'noseSneer_L',
+            'noseSneerRight': 'noseSneer_R',
+            
+            // Tongue
+            'tongueOut': 'tongueOut'
+        };
+
         // Process video frame with landmarks
         async function processVideoFrame(video) {
             if (!faceLandmarker || !isTracking) return;
@@ -1598,7 +1770,29 @@
                     }
                     
                     if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-                        blendshapes = results.faceBlendshapes[0].categories;
+                        // Map MediaPipe blendshapes to ARKit names and filter noise
+                        const mappedBlendshapes = results.faceBlendshapes[0].categories.map(shape => {
+                            // Try to map to ARKit name, fallback to original if not found
+                            const mappedName = blendshapeMapping[shape.categoryName] || shape.categoryName;
+                            
+                            // Apply noise threshold and stabilization
+                            let score = shape.score;
+                            
+                            // Different thresholds for different types of movements
+                            const threshold = getThresholdForBlendshape(mappedName);
+                            score = score < threshold ? 0 : score;
+                            
+                            // Apply expression strength multiplier
+                            score = score * (expressionStrength || 1.0);
+                            
+                            return {
+                                ...shape,
+                                categoryName: mappedName,
+                                score: Math.min(1, score)
+                            };
+                        });
+                        
+                        blendshapes = mappedBlendshapes;
                         updateDebugPanel(blendshapes);
                         updateBlendshapeControls(blendshapes);
                     }
@@ -1618,6 +1812,20 @@
             if (isTracking) {
                 requestAnimationFrame(() => processVideoFrame(video));
             }
+        }
+        
+        // Get appropriate threshold for different blendshape types
+        function getThresholdForBlendshape(name) {
+            // Eyes need lower threshold for responsiveness
+            if (name.includes('eye') || name.includes('Eye')) {
+                return 0.01;
+            }
+            // Mouth movements need medium threshold
+            if (name.includes('mouth') || name.includes('Mouth')) {
+                return 0.02;
+            }
+            // Brows and other movements
+            return 0.015;
         }
 
         // Draw customizable landmarks
@@ -1987,6 +2195,9 @@
             url = ensureMorphTargetsInUrl(url);
             currentAvatarUrl = url;
             
+            // Enable download button
+            document.getElementById('downloadBaseBtn').disabled = false;
+            
             // Clean up previous avatar
             if (avatar) {
                 scene.remove(avatar);
@@ -2066,7 +2277,6 @@
                     
                     document.getElementById('recordingControls').style.display = 'flex';
                     document.getElementById('exportGLBBtn').disabled = false;
-                    document.getElementById('exportFBXBtn').disabled = false;
                     
                     if (autoLoad) {
                         // Hide the iframe after successful auto-load
@@ -2085,6 +2295,25 @@
                     updateStatus('Failed to load avatar', 'error');
                 }
             );
+        }
+
+        // Download base avatar
+        function downloadBaseAvatar() {
+            if (!currentAvatarUrl) {
+                updateStatus('No avatar URL available', 'error');
+                return;
+            }
+            
+            // Create a temporary link and trigger download
+            const a = document.createElement('a');
+            a.href = currentAvatarUrl;
+            a.download = `avatar-base-${Date.now()}.glb`;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            updateStatus('Downloading base avatar...', 'info');
         }
 
         // Reset avatar completely
@@ -2266,7 +2495,7 @@
             }
         }
 
-        // Export functions - Fixed to not reload and include all data
+        // Export functions
         function exportGLB() {
             if (!avatar) {
                 updateStatus('No avatar to export', 'error');
@@ -2332,59 +2561,6 @@
                     includeCustomExtensions: true,
                     forceIndices: true,  // Ensure indices are included
                     truncateDrawRange: false  // Include full geometry
-                }
-            );
-        }
-
-        function exportFBX() {
-            // FBX export would require additional libraries
-            // For now, we'll export as GLB with a note
-            if (!avatar) {
-                updateStatus('No avatar to export', 'error');
-                return;
-            }
-            
-            // Export as GLB with FBX-like naming
-            const exporter = new THREE.GLTFExporter();
-            
-            // Include animations
-            const animations = [];
-            if (mixer && mixer._actions) {
-                mixer._actions.forEach(action => {
-                    if (action._clip) {
-                        animations.push(action._clip);
-                    }
-                });
-            }
-            
-            exporter.parse(
-                avatar,
-                (result) => {
-                    const blob = new Blob([result], { type: 'application/octet-stream' });
-                    const url = URL.createObjectURL(blob);
-                    
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `avatar-fbx-format-${Date.now()}.glb`;
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    setTimeout(() => {
-                        URL.revokeObjectURL(url);
-                    }, 2000);
-                    
-                    updateStatus('Exported as GLB (FBX requires conversion). Use Blender to convert GLB to FBX.', 'info');
-                },
-                (error) => {
-                    console.error('Export error:', error);
-                    updateStatus('Export failed', 'error');
-                },
-                {
-                    binary: true,
-                    animations: animations,
-                    includeCustomExtensions: true
                 }
             );
         }
@@ -2619,6 +2795,9 @@
                 if (url) loadAvatar(url, false);
             });
             
+            // Download base avatar button
+            document.getElementById('downloadBaseBtn').addEventListener('click', downloadBaseAvatar);
+            
             // Mirror toggle
             document.getElementById('mirrorWebcam').addEventListener('change', (e) => {
                 isMirrored = e.target.checked;
@@ -2811,6 +2990,21 @@
                 smoothing = parseFloat(e.target.value);
                 document.getElementById('smoothingValue').textContent = e.target.value;
             });
+            
+            document.getElementById('expressionStrength').addEventListener('input', (e) => {
+                expressionStrength = parseFloat(e.target.value);
+                document.getElementById('expressionStrengthValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('headMotion').addEventListener('input', (e) => {
+                headRotationStrength = parseFloat(e.target.value);
+                document.getElementById('headMotionValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('stabilization').addEventListener('input', (e) => {
+                stabilization = parseFloat(e.target.value);
+                document.getElementById('stabilizationValue').textContent = e.target.value;
+            });
 
             document.getElementById('showDebug').addEventListener('change', (e) => {
                 document.getElementById('blendshapesDebug').classList.toggle('active', e.target.checked);
@@ -2838,18 +3032,22 @@
             document.getElementById('playbackBtn').addEventListener('click', playRecording);
             document.getElementById('exportVideoBtn').addEventListener('click', exportVideo);
             document.getElementById('exportGLBBtn').addEventListener('click', exportGLB);
-            document.getElementById('exportFBXBtn').addEventListener('click', exportFBX);
             
-            // RPM iframe messages - Enhanced for better avatar loading
+            // RPM iframe messages - Handle only JSON format to avoid duplicate loading
             window.addEventListener('message', (event) => {
+                // Skip if not from ReadyPlayerMe domain
+                if (event.origin && !event.origin.includes('readyplayer.me')) {
+                    return;
+                }
+                
                 let json = null;
                 
                 try {
+                    // Only handle JSON messages from RPM
                     if (typeof event.data === 'string') {
-                        if (event.data.includes('.glb')) {
-                            console.log('Avatar URL received:', event.data);
-                            document.getElementById('avatarUrl').value = event.data;
-                            loadAvatar(event.data, true);
+                        // Skip direct URL strings to avoid duplicate loading
+                        if (event.data.includes('.glb') && !event.data.includes('source')) {
+                            console.log('Skipping direct URL to avoid duplicate:', event.data);
                             return;
                         }
                         json = JSON.parse(event.data);
@@ -2857,11 +3055,13 @@
                         json = event.data;
                     }
                 } catch (e) {
+                    // Not JSON, ignore
                     return;
                 }
                 
+                // Handle ReadyPlayerMe events
                 if (json && json.source === 'readyplayerme') {
-                    console.log('RPM Event:', json.eventName, json);
+                    console.log('RPM Event:', json.eventName);
                     
                     switch(json.eventName) {
                         case 'v1.frame.ready':
@@ -2880,6 +3080,7 @@
                         case 'v1.avatar.exported':
                             if (json.data && json.data.url) {
                                 const avatarUrl = json.data.url;
+                                console.log('Avatar exported, loading URL:', avatarUrl);
                                 document.getElementById('avatarUrl').value = avatarUrl;
                                 loadAvatar(avatarUrl, true);
                             }
