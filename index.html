@@ -1,0 +1,2909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avatar Mocap Studio - FACS Professional</title>
+    
+    <!-- Three.js and loaders -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/exporters/GLTFExporter.js"></script>
+    
+    <!-- MediaPipe Tasks Vision -->
+    <script type="importmap">
+        {
+            "imports": {
+                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"
+            }
+        }
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 420px;
+            background: rgba(20, 20, 40, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            background: linear-gradient(135deg, #667eea, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 30px;
+            height: 30px;
+            object-fit: contain;
+        }
+
+        .sidebar-header p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* Workflow steps */
+        .workflow-section {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .workflow-section h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .step-number.completed {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .mini-reset {
+            position: absolute;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mini-reset:hover {
+            opacity: 1;
+        }
+
+        /* Controls */
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        button.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        input[type="text"],
+        input[type="url"],
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            font-size: 14px;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            font-size: 14px;
+        }
+
+        select option {
+            background: #1a1a2e;
+            color: white;
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 40px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+
+        .slider-group {
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .slider-value {
+            color: #a855f7;
+            font-weight: 600;
+        }
+
+        /* Main viewport */
+        .viewport-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #viewport {
+            flex: 1;
+            display: block;
+        }
+
+        /* Media preview */
+        .media-preview {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 240px;
+            background: rgba(20, 20, 40, 0.95);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(102, 126, 234, 0.5);
+            transition: all 0.3s;
+        }
+
+        .media-preview.hidden {
+            transform: translateX(300px);
+        }
+
+        .media-preview-header {
+            padding: 8px;
+            background: rgba(102, 126, 234, 0.2);
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .media-close-btn {
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .media-close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .webcam-container {
+            position: relative;
+        }
+
+        #webcamVideo {
+            width: 100%;
+            height: 180px;
+            display: block;
+            background: #000;
+        }
+
+        #webcamVideo.mirrored {
+            transform: scaleX(-1);
+        }
+
+        #webcamCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 180px;
+            pointer-events: none;
+        }
+
+        #webcamCanvas.mirrored {
+            transform: scaleX(-1);
+        }
+
+        #uploadedVideo {
+            width: 100%;
+            height: 180px;
+            display: none;
+            background: #000;
+        }
+
+        /* Mirror toggle */
+        .mirror-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+        }
+
+        .mirror-toggle input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .mirror-toggle label {
+            margin: 0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        /* Status bar */
+        .status-bar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: rgba(20, 20, 40, 0.95);
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            background: #6b7280;
+            border-radius: 50%;
+        }
+
+        .status-indicator.active {
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.recording {
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Recording controls */
+        .recording-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(20, 20, 40, 0.95);
+            border-radius: 12px;
+        }
+
+        .recording-controls button {
+            width: auto;
+            padding: 10px 20px;
+            margin: 0;
+        }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* RPM iframe */
+        #rpmFrame {
+            width: 100%;
+            height: 500px;
+            border: none;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: white;
+        }
+
+        .info-text {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        /* Collapsible sections */
+        .collapsible {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .collapsible:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.open {
+            max-height: 3000px;
+            overflow-y: auto;
+        }
+
+        .chevron {
+            transition: transform 0.3s;
+        }
+
+        .chevron.open {
+            transform: rotate(180deg);
+        }
+
+        /* Blend shapes debug */
+        .blendshapes-debug {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            background: rgba(20, 20, 40, 0.95);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+            min-width: 250px;
+        }
+
+        .blendshapes-debug.active {
+            display: block;
+        }
+
+        .blendshape-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            align-items: center;
+        }
+
+        .blendshape-bar {
+            width: 80px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-left: 10px;
+        }
+
+        .blendshape-fill {
+            height: 100%;
+            background: #10b981;
+            transition: width 0.1s;
+        }
+
+        /* Video playback modal */
+        .video-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-modal.active {
+            display: flex;
+        }
+
+        .video-modal-content {
+            background: rgba(20, 20, 40, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            max-width: 80%;
+            max-height: 80%;
+        }
+
+        .video-modal video {
+            max-width: 100%;
+            max-height: 60vh;
+            border-radius: 8px;
+        }
+
+        .video-modal-close {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .input-mode-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .input-mode-tabs button {
+            flex: 1;
+            padding: 8px;
+            margin: 0;
+            font-size: 12px;
+        }
+
+        .input-mode-tabs button.active {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .input-content {
+            display: none;
+        }
+
+        .input-content.active {
+            display: block;
+        }
+
+        .subdomain-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .subdomain-group input {
+            flex: 1;
+            margin: 0;
+        }
+
+        .subdomain-group button {
+            width: auto;
+            padding: 10px 20px;
+            margin: 0;
+        }
+
+        .reset-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .reset-group button {
+            flex: 1;
+            padding: 8px;
+            margin: 0;
+            font-size: 12px;
+        }
+
+        .export-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .export-group button {
+            flex: 1;
+            padding: 10px;
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .blendshape-control {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .blendshape-control label {
+            flex: 1;
+            font-size: 11px;
+            margin: 0;
+        }
+
+        .blendshape-control input {
+            width: 120px;
+            height: 20px;
+            margin: 0 10px;
+        }
+
+        .blendshape-control .value {
+            width: 50px;
+            text-align: right;
+            font-size: 11px;
+            color: #a855f7;
+        }
+
+        .motion-control-group {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .motion-control-group h4 {
+            font-size: 12px;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+
+        .expression-controls {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+        }
+
+        .expression-slider {
+            margin-bottom: 12px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .landmark-settings {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .color-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .color-control label {
+            flex: 1;
+            margin: 0;
+            font-size: 11px;
+        }
+
+        .color-control input[type="color"] {
+            width: 60px;
+            height: 25px;
+            margin: 0;
+        }
+
+        .facs-category {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 6px;
+        }
+
+        .facs-category h4 {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>
+                    <img src="4e-logo.png" alt="4E" class="logo" onerror="this.style.display='none'">
+                    Avatar Mocap Studio
+                </h1>
+                <p>Professional ARKit facial motion capture with FACS</p>
+            </div>
+
+            <!-- Step 1: Create Avatar -->
+            <div class="workflow-section">
+                <h3>
+                    <span class="step-number" id="step1">1</span>
+                    Create Your Avatar
+                </h3>
+                <button id="createAvatarBtn">Create/Reload Avatar</button>
+                <iframe id="rpmFrame" style="display: none;" allow="camera *; microphone *"></iframe>
+                <input type="url" id="avatarUrl" placeholder="Avatar URL will appear here">
+                <button id="loadAvatarBtn" class="secondary">Load Avatar</button>
+                <p class="info-text">Avatar with ARKit blend shapes & Oculus visemes</p>
+            </div>
+
+            <!-- Step 2: Scene Setup -->
+            <div class="workflow-section">
+                <h3>
+                    <span class="step-number" id="step2">2</span>
+                    Scene Setup
+                </h3>
+                
+                <div class="collapsible" onclick="toggleSection('lighting')">
+                    <span>Lighting & Environment</span>
+                    <span class="chevron">▼</span>
+                </div>
+                <div class="collapsible-content" id="lighting">
+                    <div style="padding: 10px;">
+                        <label>Background Color</label>
+                        <input type="color" id="bgColor" value="#1a1a2e">
+                        
+                        <label>Light Color</label>
+                        <input type="color" id="lightColor" value="#ffffff">
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Light Intensity</span>
+                                <span class="slider-value" id="lightIntensityValue">1.0</span>
+                            </div>
+                            <input type="range" id="lightIntensity" min="0" max="2" step="0.1" value="1">
+                        </div>
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Light Angle</span>
+                                <span class="slider-value" id="lightAngleValue">45°</span>
+                            </div>
+                            <input type="range" id="lightAngle" min="0" max="360" value="45">
+                        </div>
+                        
+                        <div class="reset-group">
+                            <button class="secondary" onclick="resetLights()">Reset Lights</button>
+                            <button class="secondary" onclick="resetCamera()">Reset Camera</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible" onclick="toggleSection('camera')">
+                    <span>Camera Settings</span>
+                    <span class="chevron">▼</span>
+                </div>
+                <div class="collapsible-content" id="camera">
+                    <div style="padding: 10px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+                            <button class="secondary" data-view="face">Face</button>
+                            <button class="secondary" data-view="torso">Torso</button>
+                            <button class="secondary" data-view="full">Full Body</button>
+                        </div>
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Camera Distance</span>
+                                <span class="slider-value" id="cameraDistanceValue">3.0</span>
+                            </div>
+                            <input type="range" id="cameraDistance" min="1" max="10" step="0.1" value="3">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Input Source -->
+            <div class="workflow-section">
+                <h3>
+                    <span class="step-number" id="step3">3</span>
+                    Input Source
+                </h3>
+                
+                <div class="input-mode-tabs">
+                    <button class="active" data-mode="camera">Camera</button>
+                    <button data-mode="video">Video</button>
+                    <button data-mode="audio">Audio</button>
+                </div>
+                
+                <div class="input-content active" id="camera-input">
+                    <button id="startCameraBtn" class="success">Start Camera</button>
+                    <button id="stopCameraBtn" class="danger" style="display: none;">Stop Camera</button>
+                    
+                    <div class="mirror-toggle">
+                        <input type="checkbox" id="mirrorWebcam" checked>
+                        <label for="mirrorWebcam">Mirror webcam feed</label>
+                    </div>
+                </div>
+                
+                <div class="input-content" id="video-input">
+                    <input type="file" id="videoUpload" accept="video/*">
+                    <button id="processVideoBtn" class="success" disabled>Process Video</button>
+                    <p class="info-text">Upload video for facial mocap + audio</p>
+                </div>
+                
+                <div class="input-content" id="audio-input">
+                    <input type="file" id="audioUpload" accept="audio/*">
+                    <button id="processAudioBtn" class="success" disabled>Process Audio (Oculus Lipsync)</button>
+                    <p class="info-text">Audio-driven lipsync animation</p>
+                </div>
+            </div>
+
+            <!-- Step 4: Motion Capture -->
+            <div class="workflow-section">
+                <h3>
+                    <span class="step-number" id="step4">4</span>
+                    Motion Capture & FACS
+                    <button class="mini-reset" onclick="resetAllMotion()" title="Reset All">↻</button>
+                </h3>
+                
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Smoothing Factor</span>
+                        <span class="slider-value" id="smoothingValue">0.8</span>
+                    </div>
+                    <input type="range" id="smoothing" min="0" max="1" step="0.05" value="0.8">
+                </div>
+
+                <div class="collapsible" onclick="toggleSection('expressions')">
+                    <span>Facial Action Coding System (FACS)</span>
+                    <span class="chevron">▼</span>
+                </div>
+                <div class="collapsible-content" id="expressions">
+                    <div class="expression-controls">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="autoBlinkEnabled" checked>
+                            <label for="autoBlinkEnabled">Auto Blinking</label>
+                        </div>
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Blink Rate (seconds)</span>
+                                <span class="slider-value" id="blinkRateValue">3.0</span>
+                            </div>
+                            <input type="range" id="blinkRate" min="1" max="10" step="0.5" value="3">
+                        </div>
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Blink Randomization</span>
+                                <span class="slider-value" id="blinkRandomValue">0.5</span>
+                            </div>
+                            <input type="range" id="blinkRandom" min="0" max="1" step="0.1" value="0.5">
+                        </div>
+                        
+                        <!-- Upper Face FACS -->
+                        <div class="facs-category">
+                            <h4>Upper Face (FACS)</h4>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Brow Raise (AU1+2)</span>
+                                    <span class="slider-value" id="au1_2Value">0</span>
+                                </div>
+                                <input type="range" id="au1_2Slider" min="0" max="1" step="0.01" value="0" data-au="browInnerUp">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Brow Furrow (AU4)</span>
+                                    <span class="slider-value" id="au4Value">0</span>
+                                </div>
+                                <input type="range" id="au4Slider" min="0" max="1" step="0.01" value="0" data-au="browDownLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Upper Lid Raise (AU5)</span>
+                                    <span class="slider-value" id="au5Value">0</span>
+                                </div>
+                                <input type="range" id="au5Slider" min="0" max="1" step="0.01" value="0" data-au="eyeWideLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Eye Squint (AU6)</span>
+                                    <span class="slider-value" id="au6Value">0</span>
+                                </div>
+                                <input type="range" id="au6Slider" min="0" max="1" step="0.01" value="0" data-au="eyeSquintLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lid Tighten (AU7)</span>
+                                    <span class="slider-value" id="au7Value">0</span>
+                                </div>
+                                <input type="range" id="au7Slider" min="0" max="1" step="0.01" value="0" data-au="eyeSquintLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Eye Closure (AU43)</span>
+                                    <span class="slider-value" id="au43Value">0</span>
+                                </div>
+                                <input type="range" id="au43Slider" min="0" max="1" step="0.01" value="0" data-au="eyeBlinkLeft">
+                            </div>
+                        </div>
+                        
+                        <!-- Nose FACS -->
+                        <div class="facs-category">
+                            <h4>Nose (FACS)</h4>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Nose Wrinkle (AU9)</span>
+                                    <span class="slider-value" id="au9Value">0</span>
+                                </div>
+                                <input type="range" id="au9Slider" min="0" max="1" step="0.01" value="0" data-au="noseSneerLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Upper Lip Raise (AU10)</span>
+                                    <span class="slider-value" id="au10Value">0</span>
+                                </div>
+                                <input type="range" id="au10Slider" min="0" max="1" step="0.01" value="0" data-au="mouthUpperUpLeft">
+                            </div>
+                        </div>
+                        
+                        <!-- Lower Face FACS -->
+                        <div class="facs-category">
+                            <h4>Lower Face (FACS)</h4>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Smile (AU12)</span>
+                                    <span class="slider-value" id="au12Value">0</span>
+                                </div>
+                                <input type="range" id="au12Slider" min="0" max="1" step="0.01" value="0" data-au="mouthSmileLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Cheek Puff (AU13)</span>
+                                    <span class="slider-value" id="au13Value">0</span>
+                                </div>
+                                <input type="range" id="au13Slider" min="0" max="1" step="0.01" value="0" data-au="cheekPuff">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Dimpler (AU14)</span>
+                                    <span class="slider-value" id="au14Value">0</span>
+                                </div>
+                                <input type="range" id="au14Slider" min="0" max="1" step="0.01" value="0" data-au="mouthDimpleLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lip Corner Depress (AU15)</span>
+                                    <span class="slider-value" id="au15Value">0</span>
+                                </div>
+                                <input type="range" id="au15Slider" min="0" max="1" step="0.01" value="0" data-au="mouthFrownLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lower Lip Depress (AU16)</span>
+                                    <span class="slider-value" id="au16Value">0</span>
+                                </div>
+                                <input type="range" id="au16Slider" min="0" max="1" step="0.01" value="0" data-au="mouthLowerDownLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Chin Raise (AU17)</span>
+                                    <span class="slider-value" id="au17Value">0</span>
+                                </div>
+                                <input type="range" id="au17Slider" min="0" max="1" step="0.01" value="0" data-au="mouthShrugUpper">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lip Pucker (AU18)</span>
+                                    <span class="slider-value" id="au18Value">0</span>
+                                </div>
+                                <input type="range" id="au18Slider" min="0" max="1" step="0.01" value="0" data-au="mouthPucker">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Tongue Show (AU19)</span>
+                                    <span class="slider-value" id="au19Value">0</span>
+                                </div>
+                                <input type="range" id="au19Slider" min="0" max="1" step="0.01" value="0" data-au="tongueOut">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lip Stretch (AU20)</span>
+                                    <span class="slider-value" id="au20Value">0</span>
+                                </div>
+                                <input type="range" id="au20Slider" min="0" max="1" step="0.01" value="0" data-au="mouthStretchLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lip Tighten (AU23)</span>
+                                    <span class="slider-value" id="au23Value">0</span>
+                                </div>
+                                <input type="range" id="au23Slider" min="0" max="1" step="0.01" value="0" data-au="mouthPressLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lip Press (AU24)</span>
+                                    <span class="slider-value" id="au24Value">0</span>
+                                </div>
+                                <input type="range" id="au24Slider" min="0" max="1" step="0.01" value="0" data-au="mouthPressLeft">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lips Part (AU25)</span>
+                                    <span class="slider-value" id="au25Value">0</span>
+                                </div>
+                                <input type="range" id="au25Slider" min="0" max="1" step="0.01" value="0" data-au="mouthOpen">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Jaw Drop (AU26)</span>
+                                    <span class="slider-value" id="au26Value">0</span>
+                                </div>
+                                <input type="range" id="au26Slider" min="0" max="1" step="0.01" value="0" data-au="jawOpen">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Mouth Stretch (AU27)</span>
+                                    <span class="slider-value" id="au27Value">0</span>
+                                </div>
+                                <input type="range" id="au27Slider" min="0" max="1" step="0.01" value="0" data-au="mouthOpen">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Lip Suck (AU28)</span>
+                                    <span class="slider-value" id="au28Value">0</span>
+                                </div>
+                                <input type="range" id="au28Slider" min="0" max="1" step="0.01" value="0" data-au="mouthRollLower">
+                            </div>
+                        </div>
+                        
+                        <!-- Emotions FACS -->
+                        <div class="facs-category">
+                            <h4>Emotion Presets (FACS Combinations)</h4>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Happy (AU6+12)</span>
+                                    <span class="slider-value" id="happyValue">0</span>
+                                </div>
+                                <input type="range" id="happySlider" min="0" max="1" step="0.01" value="0">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Sad (AU1+4+15)</span>
+                                    <span class="slider-value" id="sadValue">0</span>
+                                </div>
+                                <input type="range" id="sadSlider" min="0" max="1" step="0.01" value="0">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Angry (AU4+5+7+23)</span>
+                                    <span class="slider-value" id="angryValue">0</span>
+                                </div>
+                                <input type="range" id="angrySlider" min="0" max="1" step="0.01" value="0">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Surprised (AU1+2+5+26)</span>
+                                    <span class="slider-value" id="surprisedValue">0</span>
+                                </div>
+                                <input type="range" id="surprisedSlider" min="0" max="1" step="0.01" value="0">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Fear (AU1+2+4+5+20+26)</span>
+                                    <span class="slider-value" id="fearValue">0</span>
+                                </div>
+                                <input type="range" id="fearSlider" min="0" max="1" step="0.01" value="0">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Disgust (AU9+15+16)</span>
+                                    <span class="slider-value" id="disgustValue">0</span>
+                                </div>
+                                <input type="range" id="disgustSlider" min="0" max="1" step="0.01" value="0">
+                            </div>
+                            
+                            <div class="expression-slider">
+                                <div class="slider-label">
+                                    <span>Contempt (AU12+14)</span>
+                                    <span class="slider-value" id="contemptValue">0</span>
+                                </div>
+                                <input type="range" id="contemptSlider" min="0" max="1" step="0.01" value="0">
+                            </div>
+                        </div>
+                        
+                        <button class="secondary" onclick="resetExpressions()">Reset All FACS</button>
+                    </div>
+                </div>
+
+                <div class="collapsible" onclick="toggleSection('blendshape-controls')">
+                    <span>Individual Blendshape Controls</span>
+                    <span class="chevron">▼</span>
+                </div>
+                <div class="collapsible-content" id="blendshape-controls">
+                    <div style="padding: 10px; max-height: 300px; overflow-y: auto;">
+                        <div id="blendshapeControlsList"></div>
+                        
+                        <div class="motion-control-group">
+                            <h4>Motion Controls</h4>
+                            <div class="blendshape-control">
+                                <label>Head Rotation</label>
+                                <input type="range" id="headRotationStrength" min="0" max="2" step="0.1" value="1">
+                                <span class="value">1.0</span>
+                            </div>
+                            <div class="blendshape-control">
+                                <label>Neck Motion</label>
+                                <input type="range" id="neckMotionStrength" min="0" max="1" step="0.1" value="0.2">
+                                <span class="value">0.2</span>
+                            </div>
+                            <div class="blendshape-control">
+                                <label>Body Motion</label>
+                                <input type="range" id="bodyMotionStrength" min="0" max="1" step="0.1" value="0.1">
+                                <span class="value">0.1</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <label style="margin-top: 10px;">
+                    <input type="checkbox" id="showDebug"> Show Blend Shapes Debug
+                </label>
+                
+                <label style="margin-top: 5px;">
+                    <input type="checkbox" id="showLandmarks" checked> Show Face Landmarks
+                </label>
+                
+                <div class="landmark-settings" id="landmarkSettings" style="display: block;">
+                    <h4 style="font-size: 12px; margin-bottom: 10px; opacity: 0.8;">Landmark Colors</h4>
+                    <div class="color-control">
+                        <label>Face Mesh</label>
+                        <input type="color" id="meshColor" value="#C0C0C0">
+                    </div>
+                    <div class="color-control">
+                        <label>Eyes</label>
+                        <input type="color" id="eyeColor" value="#30FF30">
+                    </div>
+                    <div class="color-control">
+                        <label>Lips</label>
+                        <input type="color" id="lipColor" value="#E0E0E0">
+                    </div>
+                    <div class="color-control">
+                        <label>Face Oval</label>
+                        <input type="color" id="ovalColor" value="#E0E0E0">
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Line Thickness</span>
+                            <span class="slider-value" id="lineThicknessValue">0.5</span>
+                        </div>
+                        <input type="range" id="lineThickness" min="0.1" max="2" step="0.1" value="0.5">
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Opacity</span>
+                            <span class="slider-value" id="landmarkOpacityValue">70%</span>
+                        </div>
+                        <input type="range" id="landmarkOpacity" min="10" max="100" step="10" value="70">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: Recording -->
+            <div class="workflow-section">
+                <h3>
+                    <span class="step-number" id="step5">5</span>
+                    Recording & Export
+                </h3>
+                
+                <label>Recording Settings</label>
+                <select id="fps">
+                    <option value="24">24 FPS</option>
+                    <option value="30" selected>30 FPS</option>
+                    <option value="60">60 FPS</option>
+                </select>
+                
+                <select id="resolution">
+                    <option value="720">720p</option>
+                    <option value="1080" selected>1080p</option>
+                    <option value="2160">4K</option>
+                </select>
+                
+                <label style="margin-top: 10px;">
+                    <input type="checkbox" id="recordAudio" checked> Record Audio
+                </label>
+                
+                <div class="export-group">
+                    <button id="exportVideoBtn" class="secondary" disabled>Export Video</button>
+                    <button id="exportGLBBtn" class="secondary" disabled>Export GLB</button>
+                    <button id="exportFBXBtn" class="secondary" disabled>Export FBX</button>
+                </div>
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="workflow-section">
+                <div class="collapsible" onclick="toggleSection('advanced')">
+                    <span>Advanced Settings</span>
+                    <span class="chevron">▼</span>
+                </div>
+                <div class="collapsible-content" id="advanced">
+                    <div style="padding: 10px;">
+                        <label>Custom RPM Subdomain</label>
+                        <div class="subdomain-group">
+                            <input type="text" id="rpmSubdomain" placeholder="your-subdomain">
+                            <button class="secondary" onclick="applySubdomain()">Apply</button>
+                        </div>
+                        <p class="info-text">Use your Ready Player Me developer subdomain</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Viewport -->
+        <div class="viewport-container">
+            <canvas id="viewport"></canvas>
+            
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Ready</span>
+            </div>
+
+            <!-- Blend Shapes Debug -->
+            <div class="blendshapes-debug" id="blendshapesDebug"></div>
+            
+            <!-- Media Preview -->
+            <div class="media-preview hidden" id="mediaPreview">
+                <div class="media-preview-header">
+                    <span id="mediaLabel">Camera Feed</span>
+                    <span style="display: flex; gap: 5px;">
+                        <span id="trackingStatus">●</span>
+                        <button class="media-close-btn" onclick="closeMediaPreview()">×</button>
+                    </span>
+                </div>
+                <div class="webcam-container">
+                    <video id="webcamVideo" class="mirrored" autoplay style="display: none;"></video>
+                    <canvas id="webcamCanvas" class="mirrored" style="display: none;"></canvas>
+                </div>
+                <video id="uploadedVideo" controls style="display: none;"></video>
+                <audio id="uploadedAudio" controls style="display: none; width: 100%;"></audio>
+            </div>
+            
+            <!-- Recording Controls -->
+            <div class="recording-controls" style="display: none;" id="recordingControls">
+                <button id="startRecordBtn" class="danger">● Start Recording</button>
+                <button id="stopRecordBtn" class="secondary" style="display: none;">■ Stop Recording</button>
+                <button id="playbackBtn" class="secondary" style="display: none;">▶ Play Recording</button>
+            </div>
+            
+            <!-- Loading Overlay -->
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="loading-spinner"></div>
+            </div>
+
+            <!-- Video Playback Modal -->
+            <div class="video-modal" id="videoModal">
+                <div class="video-modal-content">
+                    <video id="playbackVideo" controls></video>
+                    <button class="video-modal-close" onclick="closeVideoModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
+
+        // Global variables
+        let scene, camera, renderer, controls;
+        let avatar, mixer, clock;
+        let directionalLight;
+        let faceLandmarker;
+        let lastVideoTime = -1;
+        let isTracking = false;
+        let isRecording = false;
+        let headMesh = [];
+        let bones = {};
+        let blendshapes = [];
+        let rotation = null;
+        let smoothedBlendShapes = {};
+        let smoothedRotation = { x: 0, y: 0, z: 0 };
+        let blendshapeStrengths = {};
+        let smoothing = 0.8;
+        let headRotationStrength = 1.0;
+        let neckMotionStrength = 0.2;
+        let bodyMotionStrength = 0.1;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let recordedVideoBlob = null;
+        let inputMode = 'camera';
+        let rpmSubdomain = '';
+        let currentAvatarUrl = '';
+        let animationData = [];
+        let audioContext = null;
+        let audioAnalyser = null;
+        let isMirrored = true;
+        let autoBlinkEnabled = true;
+        let blinkRate = 3;
+        let blinkRandomization = 0.5;
+        let blinkInterval = null;
+        let showLandmarks = true;
+        let drawingUtils = null;
+        
+        // Landmark customization
+        let landmarkColors = {
+            mesh: '#C0C0C0',
+            eye: '#30FF30',
+            lip: '#E0E0E0',
+            oval: '#E0E0E0'
+        };
+        let landmarkLineThickness = 0.5;
+        let landmarkOpacity = 70;
+        
+        // FACS values
+        let facsValues = {};
+        
+        // Expression values
+        let expressionValues = {
+            happy: 0,
+            sad: 0,
+            angry: 0,
+            surprised: 0,
+            fear: 0,
+            disgust: 0,
+            contempt: 0
+        };
+        
+        // Initialize Three.js
+        function initThreeJS() {
+            const container = document.querySelector('.viewport-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            camera = new THREE.PerspectiveCamera(
+                45,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(0, 1.6, 3);
+            
+            const canvas = document.getElementById('viewport');
+            renderer = new THREE.WebGLRenderer({
+                canvas,
+                antialias: true,
+                preserveDrawingBuffer: true
+            });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            
+            directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 1.2, 0);
+            controls.update();
+            
+            clock = new THREE.Clock();
+            
+            const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+            scene.add(gridHelper);
+            
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+            
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Apply blendshapes with improved smoothing
+            if (blendshapes.length > 0 && headMesh.length > 0) {
+                blendshapes.forEach(element => {
+                    if (element.categoryName === '_neutral') return;
+                    
+                    const key = element.categoryName;
+                    const targetValue = element.score;
+                    
+                    // Initialize if not exists
+                    if (smoothedBlendShapes[key] === undefined) {
+                        smoothedBlendShapes[key] = 0;
+                    }
+                    
+                    // Apply exponential smoothing
+                    smoothedBlendShapes[key] = smoothedBlendShapes[key] * smoothing + targetValue * (1 - smoothing);
+                    
+                    headMesh.forEach(mesh => {
+                        const index = mesh.morphTargetDictionary[element.categoryName];
+                        if (index !== undefined && index >= 0) {
+                            const individualStrength = blendshapeStrengths[element.categoryName] || 1.0;
+                            let value = smoothedBlendShapes[key] * individualStrength;
+                            value = Math.max(0, Math.min(1, value));
+                            mesh.morphTargetInfluences[index] = value;
+                        }
+                    });
+                });
+            }
+            
+            // Apply FACS and expressions after mocap
+            applyFACS();
+            applyExpressions();
+            
+            // Apply head rotation with improved smoothing
+            if (rotation && bones.Head) {
+                const rotSmooth = smoothing * 1.2;
+                smoothedRotation.x = smoothedRotation.x * rotSmooth + rotation.x * (1 - rotSmooth);
+                smoothedRotation.y = smoothedRotation.y * rotSmooth + rotation.y * (1 - rotSmooth);
+                smoothedRotation.z = smoothedRotation.z * rotSmooth + rotation.z * (1 - rotSmooth);
+                
+                bones.Head.rotation.set(
+                    smoothedRotation.x * headRotationStrength,
+                    smoothedRotation.y * headRotationStrength,
+                    smoothedRotation.z * headRotationStrength
+                );
+                
+                if (bones.Neck) {
+                    bones.Neck.rotation.set(
+                        smoothedRotation.x * neckMotionStrength + 0.3,
+                        smoothedRotation.y * neckMotionStrength,
+                        smoothedRotation.z * neckMotionStrength
+                    );
+                }
+                
+                if (bones.Spine2) {
+                    bones.Spine2.rotation.set(
+                        smoothedRotation.x * bodyMotionStrength,
+                        smoothedRotation.y * bodyMotionStrength,
+                        smoothedRotation.z * bodyMotionStrength
+                    );
+                }
+            }
+            
+            // Process audio for lipsync if active
+            if (audioAnalyser && headMesh.length > 0) {
+                processAudioLipsync();
+            }
+            
+            if (mixer) {
+                mixer.update(clock.getDelta());
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+            
+            if (isRecording) {
+                animationData.push({
+                    time: performance.now(),
+                    blendshapes: [...blendshapes],
+                    rotation: rotation ? { ...rotation } : null
+                });
+            }
+        }
+
+        // Initialize MediaPipe Face Landmarker
+        async function initFaceLandmarker() {
+            const filesetResolver = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+            );
+            
+            faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                    delegate: "GPU"
+                },
+                numFaces: 1,
+                runningMode: "VIDEO",
+                outputFaceBlendshapes: true,
+                outputFacialTransformationMatrixes: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            // Initialize drawing utils
+            const canvas = document.getElementById('webcamCanvas');
+            const ctx = canvas.getContext('2d');
+            drawingUtils = new DrawingUtils(ctx);
+            
+            console.log('Face Landmarker initialized');
+        }
+
+        // Process video frame with landmarks
+        async function processVideoFrame(video) {
+            if (!faceLandmarker || !isTracking) return;
+            
+            const nowInMs = Date.now();
+            if (lastVideoTime !== video.currentTime) {
+                lastVideoTime = video.currentTime;
+                
+                try {
+                    const results = await faceLandmarker.detectForVideo(video, nowInMs);
+                    
+                    if (showLandmarks && results.faceLandmarks && results.faceLandmarks.length > 0) {
+                        drawLandmarks(results.faceLandmarks[0]);
+                    }
+                    
+                    if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+                        blendshapes = results.faceBlendshapes[0].categories;
+                        updateDebugPanel(blendshapes);
+                        updateBlendshapeControls(blendshapes);
+                    }
+                    
+                    if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
+                        const matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
+                        rotation = new THREE.Euler().setFromRotationMatrix(matrix);
+                    }
+                    
+                    document.getElementById('trackingStatus').style.color = '#10b981';
+                } catch (error) {
+                    console.error('Face detection error:', error);
+                    document.getElementById('trackingStatus').style.color = '#ef4444';
+                }
+            }
+            
+            if (isTracking) {
+                requestAnimationFrame(() => processVideoFrame(video));
+            }
+        }
+
+        // Draw customizable landmarks
+        function drawLandmarks(landmarks) {
+            const canvas = document.getElementById('webcamCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!showLandmarks) return;
+            
+            const opacity = landmarkOpacity / 100;
+            
+            if (drawingUtils) {
+                // Face mesh with custom color and opacity
+                const meshColorWithOpacity = landmarkColors.mesh + Math.round(opacity * 255).toString(16).padStart(2, '0');
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+                    { color: meshColorWithOpacity, lineWidth: landmarkLineThickness }
+                );
+                
+                // Draw lips
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_LIPS,
+                    { color: landmarkColors.lip, lineWidth: landmarkLineThickness + 0.5 }
+                );
+                
+                // Draw eyes
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+                    { color: landmarkColors.eye, lineWidth: landmarkLineThickness + 0.5 }
+                );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+                    { color: landmarkColors.eye, lineWidth: landmarkLineThickness + 0.5 }
+                );
+                
+                // Draw face oval
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+                    { color: landmarkColors.oval, lineWidth: landmarkLineThickness + 0.5 }
+                );
+            }
+        }
+
+        // Apply FACS action units
+        function applyFACS() {
+            if (!headMesh.length) return;
+            
+            // Apply each FACS AU
+            Object.entries(facsValues).forEach(([au, value]) => {
+                if (value > 0) {
+                    const morphName = document.querySelector(`#${au}Slider`)?.dataset.au;
+                    if (morphName) {
+                        headMesh.forEach(mesh => {
+                            if (mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
+                                const index = mesh.morphTargetDictionary[morphName];
+                                if (index !== undefined && index >= 0) {
+                                    const currentSmoothed = smoothedBlendShapes[morphName] || 0;
+                                    mesh.morphTargetInfluences[index] = Math.min(1, Math.max(currentSmoothed, value));
+                                }
+                                
+                                // Apply to symmetric morphs
+                                if (morphName.includes('Left')) {
+                                    const rightMorph = morphName.replace('Left', 'Right');
+                                    const rightIndex = mesh.morphTargetDictionary[rightMorph];
+                                    if (rightIndex !== undefined && rightIndex >= 0) {
+                                        mesh.morphTargetInfluences[rightIndex] = Math.min(1, Math.max(currentSmoothed, value));
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        // Apply expressions with FACS
+        function applyExpressions() {
+            if (!headMesh.length) return;
+            
+            const expressionMap = {
+                happy: {
+                    mouthSmileLeft: 0.7,
+                    mouthSmileRight: 0.7,
+                    eyeSquintLeft: 0.3,
+                    eyeSquintRight: 0.3,
+                    cheekSquintLeft: 0.2,
+                    cheekSquintRight: 0.2
+                },
+                sad: {
+                    mouthFrownLeft: 0.6,
+                    mouthFrownRight: 0.6,
+                    browInnerUp: 0.5,
+                    eyeSquintLeft: 0.2,
+                    eyeSquintRight: 0.2,
+                    mouthStretchLeft: 0.3,
+                    mouthStretchRight: 0.3
+                },
+                angry: {
+                    browDownLeft: 0.7,
+                    browDownRight: 0.7,
+                    eyeSquintLeft: 0.4,
+                    eyeSquintRight: 0.4,
+                    jawForward: 0.3,
+                    mouthPressLeft: 0.3,
+                    mouthPressRight: 0.3
+                },
+                surprised: {
+                    mouthOpen: 0.3,
+                    jawOpen: 0.3,
+                    eyeWideLeft: 0.8,
+                    eyeWideRight: 0.8,
+                    browInnerUp: 0.6,
+                    browOuterUpLeft: 0.4,
+                    browOuterUpRight: 0.4
+                },
+                fear: {
+                    browInnerUp: 0.7,
+                    browOuterUpLeft: 0.3,
+                    browOuterUpRight: 0.3,
+                    eyeWideLeft: 0.6,
+                    eyeWideRight: 0.6,
+                    mouthStretchLeft: 0.4,
+                    mouthStretchRight: 0.4,
+                    jawOpen: 0.3
+                },
+                disgust: {
+                    noseSneerLeft: 0.6,
+                    noseSneerRight: 0.6,
+                    mouthFrownLeft: 0.5,
+                    mouthFrownRight: 0.5,
+                    mouthLowerDownLeft: 0.3,
+                    mouthLowerDownRight: 0.3
+                },
+                contempt: {
+                    mouthSmileLeft: 0.4,
+                    mouthDimpleLeft: 0.3
+                }
+            };
+            
+            Object.keys(expressionValues).forEach(expr => {
+                const value = expressionValues[expr];
+                if (value > 0 && expressionMap[expr]) {
+                    const morphs = expressionMap[expr];
+                    Object.entries(morphs).forEach(([morphName, maxValue]) => {
+                        headMesh.forEach(mesh => {
+                            if (mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
+                                const index = mesh.morphTargetDictionary[morphName];
+                                if (index !== undefined && index >= 0) {
+                                    const currentSmoothed = smoothedBlendShapes[morphName] || 0;
+                                    const expressionValue = maxValue * value;
+                                    mesh.morphTargetInfluences[index] = Math.min(1, Math.max(currentSmoothed, expressionValue));
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
+        // Reset expressions
+        function resetExpressions() {
+            // Reset FACS values
+            facsValues = {};
+            document.querySelectorAll('[id$="Slider"][data-au]').forEach(slider => {
+                slider.value = 0;
+                const id = slider.id.replace('Slider', 'Value');
+                document.getElementById(id).textContent = '0';
+            });
+            
+            // Reset emotion presets
+            expressionValues = {
+                happy: 0,
+                sad: 0,
+                angry: 0,
+                surprised: 0,
+                fear: 0,
+                disgust: 0,
+                contempt: 0
+            };
+            
+            ['happy', 'sad', 'angry', 'surprised', 'fear', 'disgust', 'contempt'].forEach(expr => {
+                document.getElementById(expr + 'Slider').value = 0;
+                document.getElementById(expr + 'Value').textContent = '0';
+            });
+        }
+
+        // Auto blinking with randomization
+        function startAutoBlinking() {
+            if (blinkInterval) {
+                clearTimeout(blinkInterval);
+                blinkInterval = null;
+            }
+            
+            if (!autoBlinkEnabled || !headMesh.length) return;
+            
+            function performBlink() {
+                if (!autoBlinkEnabled) return;
+                
+                headMesh.forEach(mesh => {
+                    const leftIndex = mesh.morphTargetDictionary['eyeBlinkLeft'];
+                    const rightIndex = mesh.morphTargetDictionary['eyeBlinkRight'];
+                    
+                    if (leftIndex !== undefined) {
+                        mesh.morphTargetInfluences[leftIndex] = 1;
+                    }
+                    if (rightIndex !== undefined) {
+                        mesh.morphTargetInfluences[rightIndex] = 1;
+                    }
+                });
+                
+                setTimeout(() => {
+                    headMesh.forEach(mesh => {
+                        const leftIndex = mesh.morphTargetDictionary['eyeBlinkLeft'];
+                        const rightIndex = mesh.morphTargetDictionary['eyeBlinkRight'];
+                        
+                        if (leftIndex !== undefined) {
+                            mesh.morphTargetInfluences[leftIndex] = 0;
+                        }
+                        if (rightIndex !== undefined) {
+                            mesh.morphTargetInfluences[rightIndex] = 0;
+                        }
+                    });
+                }, 150);
+                
+                // Schedule next blink with randomization
+                const randomFactor = 1 + (Math.random() - 0.5) * blinkRandomization * 2;
+                const nextBlinkTime = blinkRate * 1000 * randomFactor;
+                blinkInterval = setTimeout(performBlink, nextBlinkTime);
+            }
+            
+            // Start first blink
+            const initialTime = blinkRate * 1000 * (1 + (Math.random() - 0.5) * blinkRandomization * 2);
+            blinkInterval = setTimeout(performBlink, initialTime);
+        }
+
+        // Process audio for lipsync
+        function processAudioLipsync() {
+            if (!audioAnalyser) return;
+            
+            const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+            audioAnalyser.getByteFrequencyData(dataArray);
+            
+            const avgVolume = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            const normalizedVolume = avgVolume / 255;
+            
+            const lowFreq = dataArray.slice(0, 10).reduce((a, b) => a + b) / 10 / 255;
+            const midFreq = dataArray.slice(10, 50).reduce((a, b) => a + b) / 40 / 255;
+            
+            headMesh.forEach(mesh => {
+                const silIndex = mesh.morphTargetDictionary['viseme_sil'];
+                if (silIndex !== undefined) {
+                    mesh.morphTargetInfluences[silIndex] = normalizedVolume < 0.1 ? 1 : 0;
+                }
+                
+                const aaIndex = mesh.morphTargetDictionary['viseme_aa'];
+                if (aaIndex !== undefined) {
+                    mesh.morphTargetInfluences[aaIndex] = lowFreq * normalizedVolume;
+                }
+                
+                const eeIndex = mesh.morphTargetDictionary['viseme_E'];
+                if (eeIndex !== undefined) {
+                    mesh.morphTargetInfluences[eeIndex] = midFreq * normalizedVolume;
+                }
+                
+                const ohIndex = mesh.morphTargetDictionary['viseme_oh'];
+                if (ohIndex !== undefined) {
+                    mesh.morphTargetInfluences[ohIndex] = (lowFreq + midFreq) * 0.5 * normalizedVolume;
+                }
+            });
+        }
+
+        // Update blendshape controls UI
+        function updateBlendshapeControls(blendShapes) {
+            const container = document.getElementById('blendshapeControlsList');
+            if (!container.children.length) {
+                const activeShapes = blendShapes.filter(s => s.categoryName !== '_neutral');
+                
+                activeShapes.forEach(shape => {
+                    const control = document.createElement('div');
+                    control.className = 'blendshape-control';
+                    control.innerHTML = `
+                        <label>${shape.categoryName}</label>
+                        <input type="range" min="0" max="2" step="0.1" value="1" 
+                               data-shape="${shape.categoryName}">
+                        <span class="value">1.0</span>
+                    `;
+                    
+                    const slider = control.querySelector('input');
+                    const valueSpan = control.querySelector('.value');
+                    
+                    slider.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        blendshapeStrengths[shape.categoryName] = value;
+                        valueSpan.textContent = value.toFixed(1);
+                    });
+                    
+                    container.appendChild(control);
+                });
+            }
+        }
+
+        // Update debug panel
+        function updateDebugPanel(blendShapes) {
+            const debugPanel = document.getElementById('blendshapesDebug');
+            if (!debugPanel.classList.contains('active')) return;
+            
+            let html = '<div style="margin-bottom: 10px; font-weight: bold;">Active ARKit Blend Shapes:</div>';
+            
+            const activeShapes = blendShapes
+                .filter(shape => shape.score > 0.01 && shape.categoryName !== '_neutral')
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 15);
+            
+            activeShapes.forEach(shape => {
+                const individualStrength = blendshapeStrengths[shape.categoryName] || 1.0;
+                const smoothedValue = smoothedBlendShapes[shape.categoryName] || 0;
+                const finalValue = smoothedValue * individualStrength;
+                const percentage = (Math.min(1, finalValue) * 100).toFixed(1);
+                
+                html += `
+                    <div class="blendshape-item">
+                        <span>${shape.categoryName}</span>
+                        <div class="blendshape-bar">
+                            <div class="blendshape-fill" style="width: ${percentage}%"></div>
+                        </div>
+                        <span style="margin-left: 5px; color: #a855f7;">${percentage}%</span>
+                    </div>
+                `;
+            });
+            
+            if (activeShapes.length === 0) {
+                html += '<div style="opacity: 0.5;">No active blend shapes detected</div>';
+            }
+            
+            debugPanel.innerHTML = html;
+        }
+
+        // URL formatting function to ensure morph targets
+        function ensureMorphTargetsInUrl(url) {
+            if (!url) return url;
+            
+            if (url.includes('api.readyplayer.me')) {
+                url = url.replace('api.readyplayer.me', 'models.readyplayer.me');
+            }
+            
+            if (!url.includes('morphTargets')) {
+                const separator = url.includes('?') ? '&' : '?';
+                url += `${separator}morphTargets=ARKit,Oculus%20Visemes&textureAtlas=1024`;
+            }
+            
+            return url;
+        }
+
+        // Load avatar with auto-load support
+        async function loadAvatar(url, autoLoad = false) {
+            showLoading(true);
+            updateStatus('Loading avatar...', 'loading');
+            
+            // Ensure URL has morph targets
+            url = ensureMorphTargetsInUrl(url);
+            currentAvatarUrl = url;
+            
+            // Clean up previous avatar
+            if (avatar) {
+                scene.remove(avatar);
+                avatar = null;
+                headMesh = [];
+                bones = {};
+                blendshapeStrengths = {};
+                smoothedBlendShapes = {};
+                smoothedRotation = { x: 0, y: 0, z: 0 };
+                document.getElementById('blendshapeControlsList').innerHTML = '';
+                
+                if (blinkInterval) {
+                    clearTimeout(blinkInterval);
+                    blinkInterval = null;
+                }
+            }
+            
+            const loader = new THREE.GLTFLoader();
+            
+            loader.load(
+                url,
+                (gltf) => {
+                    avatar = gltf.scene;
+                    
+                    // Store animations if present
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        mixer = new THREE.AnimationMixer(avatar);
+                        gltf.animations.forEach(clip => {
+                            const action = mixer.clipAction(clip);
+                            action.play();
+                        });
+                    } else {
+                        mixer = new THREE.AnimationMixer(avatar);
+                    }
+                    
+                    // Find meshes with morph targets and bones
+                    avatar.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            
+                            if (child.morphTargetInfluences && child.morphTargetDictionary) {
+                                const morphCount = Object.keys(child.morphTargetDictionary).length;
+                                if (morphCount > 0) {
+                                    headMesh.push(child);
+                                    console.log(`Found mesh: ${child.name} with ${morphCount} morphs`);
+                                }
+                            }
+                        }
+                        
+                        if (child.isBone) {
+                            bones[child.name] = child;
+                        }
+                    });
+                    
+                    scene.add(avatar);
+                    
+                    // Center avatar
+                    const box = new THREE.Box3().setFromObject(avatar);
+                    const center = box.getCenter(new THREE.Vector3());
+                    avatar.position.x = -center.x;
+                    avatar.position.y = -box.min.y;
+                    avatar.position.z = -center.z;
+                    
+                    // Start auto blinking
+                    startAutoBlinking();
+                    
+                    showLoading(false);
+                    
+                    const totalMorphs = headMesh.reduce((acc, mesh) => 
+                        acc + Object.keys(mesh.morphTargetDictionary).length, 0);
+                    
+                    updateStatus(`Avatar loaded (${totalMorphs} morphs, ${Object.keys(bones).length} bones)`, 'success');
+                    
+                    markStepComplete(1);
+                    markStepComplete(2);
+                    
+                    document.getElementById('recordingControls').style.display = 'flex';
+                    document.getElementById('exportGLBBtn').disabled = false;
+                    document.getElementById('exportFBXBtn').disabled = false;
+                    
+                    if (autoLoad) {
+                        // Hide the iframe after successful auto-load
+                        setTimeout(() => {
+                            document.getElementById('rpmFrame').style.display = 'none';
+                        }, 500);
+                    }
+                },
+                (progress) => {
+                    const percent = Math.round((progress.loaded / (progress.total || 1)) * 100);
+                    updateStatus(`Loading: ${percent}%`, 'loading');
+                },
+                (error) => {
+                    console.error(error);
+                    showLoading(false);
+                    updateStatus('Failed to load avatar', 'error');
+                }
+            );
+        }
+
+        // Reset avatar completely
+        function resetAvatar() {
+            headMesh.forEach(mesh => {
+                if (mesh.morphTargetInfluences) {
+                    mesh.morphTargetInfluences.fill(0);
+                }
+            });
+            
+            if (bones.Head) bones.Head.rotation.set(0, 0, 0);
+            if (bones.Neck) bones.Neck.rotation.set(0.3, 0, 0);
+            if (bones.Spine2) bones.Spine2.rotation.set(0, 0, 0);
+            
+            blendshapes = [];
+            rotation = null;
+            smoothedBlendShapes = {};
+            smoothedRotation = { x: 0, y: 0, z: 0 };
+        }
+
+        // Start camera tracking
+        async function startCamera() {
+            resetAvatar();
+            
+            // Setup canvas for landmarks
+            const canvas = document.getElementById('webcamCanvas');
+            canvas.width = 240;
+            canvas.height = 180;
+            
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            } catch (err) {
+                updateStatus('Camera permission denied', 'error');
+                return;
+            }
+            
+            const video = document.getElementById('webcamVideo');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720 },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+                video.style.display = 'block';
+                canvas.style.display = 'block';
+                document.getElementById('uploadedVideo').style.display = 'none';
+                document.getElementById('uploadedAudio').style.display = 'none';
+                
+                await new Promise(resolve => {
+                    video.addEventListener('loadeddata', resolve, { once: true });
+                });
+                
+                isTracking = true;
+                processVideoFrame(video);
+                
+                document.getElementById('mediaPreview').classList.remove('hidden');
+                document.getElementById('mediaLabel').textContent = 'Camera Feed';
+                document.getElementById('startCameraBtn').style.display = 'none';
+                document.getElementById('stopCameraBtn').style.display = 'block';
+                
+                updateStatus('Camera tracking active', 'success');
+                markStepComplete(3);
+                markStepComplete(4);
+                
+            } catch (error) {
+                console.error('Error starting camera:', error);
+                updateStatus('Failed to start camera: ' + error.message, 'error');
+            }
+        }
+
+        // Stop camera tracking
+        function stopCamera() {
+            isTracking = false;
+            
+            const video = document.getElementById('webcamVideo');
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            
+            const canvas = document.getElementById('webcamCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.style.display = 'none';
+            
+            document.getElementById('mediaPreview').classList.add('hidden');
+            document.getElementById('startCameraBtn').style.display = 'block';
+            document.getElementById('stopCameraBtn').style.display = 'none';
+            
+            updateStatus('Camera stopped', 'info');
+        }
+
+        // Process uploaded video
+        async function processVideo() {
+            resetAvatar();
+            
+            const videoFile = document.getElementById('videoUpload').files[0];
+            if (!videoFile) return;
+            
+            const video = document.getElementById('uploadedVideo');
+            video.src = URL.createObjectURL(videoFile);
+            video.style.display = 'block';
+            document.getElementById('webcamVideo').style.display = 'none';
+            document.getElementById('webcamCanvas').style.display = 'none';
+            document.getElementById('uploadedAudio').style.display = 'none';
+            
+            await new Promise(resolve => {
+                video.addEventListener('loadeddata', resolve, { once: true });
+            });
+            
+            document.getElementById('mediaPreview').classList.remove('hidden');
+            document.getElementById('mediaLabel').textContent = 'Video Playback';
+            
+            video.volume = 1.0;
+            video.play();
+            
+            isTracking = true;
+            processVideoFrame(video);
+            
+            updateStatus('Processing video with audio...', 'info');
+            markStepComplete(3);
+            markStepComplete(4);
+        }
+
+        // Process audio with simulated lipsync
+        async function processAudio() {
+            resetAvatar();
+            
+            const audioFile = document.getElementById('audioUpload').files[0];
+            if (!audioFile) return;
+            
+            const audio = document.getElementById('uploadedAudio');
+            audio.src = URL.createObjectURL(audioFile);
+            audio.style.display = 'block';
+            document.getElementById('webcamVideo').style.display = 'none';
+            document.getElementById('webcamCanvas').style.display = 'none';
+            document.getElementById('uploadedVideo').style.display = 'none';
+            
+            document.getElementById('mediaPreview').classList.remove('hidden');
+            document.getElementById('mediaLabel').textContent = 'Audio Playback';
+            
+            // Setup audio analysis
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            const source = audioContext.createMediaElementSource(audio);
+            audioAnalyser = audioContext.createAnalyser();
+            audioAnalyser.fftSize = 256;
+            
+            source.connect(audioAnalyser);
+            audioAnalyser.connect(audioContext.destination);
+            
+            audio.play();
+            
+            updateStatus('Processing audio with lipsync...', 'info');
+            markStepComplete(3);
+            markStepComplete(4);
+        }
+
+        // Close media preview
+        window.closeMediaPreview = function() {
+            document.getElementById('mediaPreview').classList.add('hidden');
+            
+            if (isTracking) {
+                stopCamera();
+            }
+            
+            const video = document.getElementById('uploadedVideo');
+            if (!video.paused) {
+                video.pause();
+            }
+            
+            const audio = document.getElementById('uploadedAudio');
+            if (!audio.paused) {
+                audio.pause();
+            }
+        }
+
+        // Export functions - Fixed to not reload and include all data
+        function exportGLB() {
+            if (!avatar) {
+                updateStatus('No avatar to export', 'error');
+                return;
+            }
+            
+            const exporter = new THREE.GLTFExporter();
+            
+            // Include animations if they exist
+            const animations = [];
+            if (mixer && mixer._actions) {
+                mixer._actions.forEach(action => {
+                    if (action._clip) {
+                        animations.push(action._clip);
+                    }
+                });
+            }
+            
+            // Export with binary format for proper texture and morph target support
+            exporter.parse(
+                avatar,
+                (result) => {
+                    let blob;
+                    let filename;
+                    
+                    if (result instanceof ArrayBuffer) {
+                        // Binary format (better for textures and morphs)
+                        blob = new Blob([result], { type: 'application/octet-stream' });
+                        filename = `avatar-animated-${Date.now()}.glb`;
+                    } else {
+                        // JSON format
+                        const output = JSON.stringify(result, null, 2);
+                        blob = new Blob([output], { type: 'application/json' });
+                        filename = `avatar-animated-${Date.now()}.gltf`;
+                    }
+                    
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    // Clean up URL after download
+                    setTimeout(() => {
+                        URL.revokeObjectURL(url);
+                    }, 2000);
+                    
+                    updateStatus('GLB exported successfully with textures and morphs', 'success');
+                },
+                (error) => {
+                    console.error('Export error:', error);
+                    updateStatus('Export failed', 'error');
+                },
+                {
+                    binary: true,  // Export as binary GLB
+                    trs: false,    // Use matrices instead of TRS
+                    onlyVisible: true,
+                    animations: animations,  // Include animations
+                    includeCustomExtensions: true,
+                    forceIndices: true,  // Ensure indices are included
+                    truncateDrawRange: false  // Include full geometry
+                }
+            );
+        }
+
+        function exportFBX() {
+            // FBX export would require additional libraries
+            // For now, we'll export as GLB with a note
+            if (!avatar) {
+                updateStatus('No avatar to export', 'error');
+                return;
+            }
+            
+            // Export as GLB with FBX-like naming
+            const exporter = new THREE.GLTFExporter();
+            
+            // Include animations
+            const animations = [];
+            if (mixer && mixer._actions) {
+                mixer._actions.forEach(action => {
+                    if (action._clip) {
+                        animations.push(action._clip);
+                    }
+                });
+            }
+            
+            exporter.parse(
+                avatar,
+                (result) => {
+                    const blob = new Blob([result], { type: 'application/octet-stream' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `avatar-fbx-format-${Date.now()}.glb`;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    setTimeout(() => {
+                        URL.revokeObjectURL(url);
+                    }, 2000);
+                    
+                    updateStatus('Exported as GLB (FBX requires conversion). Use Blender to convert GLB to FBX.', 'info');
+                },
+                (error) => {
+                    console.error('Export error:', error);
+                    updateStatus('Export failed', 'error');
+                },
+                {
+                    binary: true,
+                    animations: animations,
+                    includeCustomExtensions: true
+                }
+            );
+        }
+
+        function exportVideo() {
+            if (recordedVideoBlob) {
+                const url = URL.createObjectURL(recordedVideoBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `avatar-mocap-${Date.now()}.webm`;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Clean up URL after download
+                setTimeout(() => {
+                    URL.revokeObjectURL(url);
+                }, 2000);
+                
+                updateStatus('Video exported successfully', 'success');
+            } else {
+                updateStatus('No recording to export', 'error');
+            }
+        }
+
+        // Recording functions
+        async function startRecording() {
+            const canvas = document.getElementById('viewport');
+            const fps = parseInt(document.getElementById('fps').value);
+            const includeAudio = document.getElementById('recordAudio').checked;
+            
+            animationData = [];
+            let stream = canvas.captureStream(fps);
+            
+            if (includeAudio) {
+                try {
+                    const video = document.getElementById('uploadedVideo');
+                    if (video.style.display !== 'none' && !video.paused) {
+                        const audioContext = new AudioContext();
+                        const source = audioContext.createMediaElementSource(video);
+                        const destination = audioContext.createMediaStreamDestination();
+                        source.connect(destination);
+                        source.connect(audioContext.destination);
+                        
+                        destination.stream.getAudioTracks().forEach(track => {
+                            stream.addTrack(track);
+                        });
+                    } else {
+                        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        audioStream.getAudioTracks().forEach(track => stream.addTrack(track));
+                    }
+                } catch (err) {
+                    console.warn('Could not get audio:', err);
+                }
+            }
+            
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'video/webm;codecs=vp9,opus'
+            });
+            
+            recordedChunks = [];
+            
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+            
+            mediaRecorder.onstop = () => {
+                recordedVideoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+            };
+            
+            mediaRecorder.start();
+            isRecording = true;
+            
+            document.getElementById('startRecordBtn').style.display = 'none';
+            document.getElementById('stopRecordBtn').style.display = 'block';
+            document.getElementById('statusIndicator').classList.add('recording');
+            updateStatus('Recording...', 'recording');
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                if (mediaRecorder.stream) {
+                    mediaRecorder.stream.getAudioTracks().forEach(track => track.stop());
+                }
+                
+                document.getElementById('startRecordBtn').style.display = 'block';
+                document.getElementById('stopRecordBtn').style.display = 'none';
+                document.getElementById('playbackBtn').style.display = 'block';
+                document.getElementById('exportVideoBtn').disabled = false;
+                document.getElementById('statusIndicator').classList.remove('recording');
+                
+                updateStatus('Recording complete', 'success');
+                markStepComplete(5);
+            }
+        }
+
+        function playRecording() {
+            if (recordedVideoBlob) {
+                const url = URL.createObjectURL(recordedVideoBlob);
+                const video = document.getElementById('playbackVideo');
+                video.src = url;
+                document.getElementById('videoModal').classList.add('active');
+                video.play();
+            }
+        }
+
+        window.closeVideoModal = function() {
+            const video = document.getElementById('playbackVideo');
+            video.pause();
+            video.src = '';
+            document.getElementById('videoModal').classList.remove('active');
+        }
+
+        // Reset functions
+        window.resetLights = function() {
+            document.getElementById('lightColor').value = '#ffffff';
+            document.getElementById('lightIntensity').value = 1;
+            document.getElementById('lightAngle').value = 45;
+            
+            directionalLight.color = new THREE.Color(0xffffff);
+            directionalLight.intensity = 1;
+            const angle = 45 * Math.PI / 180;
+            directionalLight.position.set(Math.cos(angle) * 10, 10, Math.sin(angle) * 10);
+            
+            updateStatus('Lights reset', 'info');
+        }
+
+        window.resetCamera = function() {
+            camera.position.set(0, 1.6, 3);
+            controls.target.set(0, 1.2, 0);
+            controls.update();
+            document.getElementById('cameraDistance').value = 3;
+            document.getElementById('cameraDistanceValue').textContent = '3.0';
+            
+            updateStatus('Camera reset', 'info');
+        }
+
+        window.resetAllMotion = function() {
+            resetAvatar();
+            resetExpressions();
+            
+            document.querySelectorAll('#blendshapeControlsList input').forEach(input => {
+                input.value = 1;
+                input.nextElementSibling.textContent = '1.0';
+            });
+            blendshapeStrengths = {};
+            
+            document.getElementById('headRotationStrength').value = 1;
+            document.getElementById('neckMotionStrength').value = 0.2;
+            document.getElementById('bodyMotionStrength').value = 0.1;
+            
+            headRotationStrength = 1.0;
+            neckMotionStrength = 0.2;
+            bodyMotionStrength = 0.1;
+            
+            updateStatus('All motion reset', 'info');
+        }
+
+        window.applySubdomain = function() {
+            rpmSubdomain = document.getElementById('rpmSubdomain').value.trim();
+            
+            const iframe = document.getElementById('rpmFrame');
+            iframe.src = getRPMUrl();
+            
+            updateStatus(`Subdomain ${rpmSubdomain ? 'applied' : 'cleared'}`, 'success');
+        }
+
+        function getRPMUrl() {
+            if (rpmSubdomain) {
+                return `https://${rpmSubdomain}.readyplayer.me/avatar?frameApi&morphTargets=ARKit,Oculus%20Visemes`;
+            }
+            return 'https://demo.readyplayer.me/avatar?frameApi&morphTargets=ARKit,Oculus%20Visemes';
+        }
+
+        // Utility functions
+        function updateStatus(text, type = 'info') {
+            const statusText = document.getElementById('statusText');
+            const statusIndicator = document.getElementById('statusIndicator');
+            
+            statusText.textContent = text;
+            
+            statusIndicator.classList.toggle('active', type === 'success' || type === 'recording');
+            statusIndicator.classList.toggle('recording', type === 'recording');
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('active', show);
+        }
+
+        function markStepComplete(stepNumber) {
+            document.getElementById(`step${stepNumber}`).classList.add('completed');
+        }
+
+        window.toggleSection = function(id) {
+            const content = document.getElementById(id);
+            const isOpen = content.classList.contains('open');
+            
+            document.querySelectorAll('.collapsible-content').forEach(el => {
+                el.classList.remove('open');
+            });
+            document.querySelectorAll('.chevron').forEach(el => {
+                el.classList.remove('open');
+            });
+            
+            if (!isOpen) {
+                content.classList.add('open');
+                event.currentTarget.querySelector('.chevron').classList.add('open');
+            }
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Avatar creation
+            document.getElementById('createAvatarBtn').addEventListener('click', () => {
+                const iframe = document.getElementById('rpmFrame');
+                const isVisible = iframe.style.display !== 'none';
+                
+                if (isVisible) {
+                    iframe.style.display = 'none';
+                } else {
+                    iframe.style.display = 'block';
+                    iframe.src = getRPMUrl();
+                }
+            });
+            
+            document.getElementById('loadAvatarBtn').addEventListener('click', () => {
+                const url = document.getElementById('avatarUrl').value;
+                if (url) loadAvatar(url, false);
+            });
+            
+            // Mirror toggle
+            document.getElementById('mirrorWebcam').addEventListener('change', (e) => {
+                isMirrored = e.target.checked;
+                const video = document.getElementById('webcamVideo');
+                const canvas = document.getElementById('webcamCanvas');
+                if (isMirrored) {
+                    video.classList.add('mirrored');
+                    canvas.classList.add('mirrored');
+                } else {
+                    video.classList.remove('mirrored');
+                    canvas.classList.remove('mirrored');
+                }
+            });
+            
+            // Landmarks toggle
+            document.getElementById('showLandmarks').addEventListener('change', (e) => {
+                showLandmarks = e.target.checked;
+                document.getElementById('landmarkSettings').style.display = showLandmarks ? 'block' : 'none';
+                if (!showLandmarks) {
+                    const canvas = document.getElementById('webcamCanvas');
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            });
+            
+            // Landmark customization
+            document.getElementById('meshColor').addEventListener('input', (e) => {
+                landmarkColors.mesh = e.target.value;
+            });
+            
+            document.getElementById('eyeColor').addEventListener('input', (e) => {
+                landmarkColors.eye = e.target.value;
+            });
+            
+            document.getElementById('lipColor').addEventListener('input', (e) => {
+                landmarkColors.lip = e.target.value;
+            });
+            
+            document.getElementById('ovalColor').addEventListener('input', (e) => {
+                landmarkColors.oval = e.target.value;
+            });
+            
+            document.getElementById('lineThickness').addEventListener('input', (e) => {
+                landmarkLineThickness = parseFloat(e.target.value);
+                document.getElementById('lineThicknessValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('landmarkOpacity').addEventListener('input', (e) => {
+                landmarkOpacity = parseInt(e.target.value);
+                document.getElementById('landmarkOpacityValue').textContent = e.target.value + '%';
+            });
+            
+            // Auto blink toggle
+            document.getElementById('autoBlinkEnabled').addEventListener('change', (e) => {
+                autoBlinkEnabled = e.target.checked;
+                if (autoBlinkEnabled) {
+                    startAutoBlinking();
+                } else {
+                    if (blinkInterval) {
+                        clearTimeout(blinkInterval);
+                        blinkInterval = null;
+                    }
+                }
+            });
+            
+            // Blink rate
+            document.getElementById('blinkRate').addEventListener('input', (e) => {
+                blinkRate = parseFloat(e.target.value);
+                document.getElementById('blinkRateValue').textContent = blinkRate.toFixed(1);
+                if (autoBlinkEnabled) {
+                    startAutoBlinking();
+                }
+            });
+            
+            // Blink randomization
+            document.getElementById('blinkRandom').addEventListener('input', (e) => {
+                blinkRandomization = parseFloat(e.target.value);
+                document.getElementById('blinkRandomValue').textContent = blinkRandomization.toFixed(1);
+                if (autoBlinkEnabled) {
+                    startAutoBlinking();
+                }
+            });
+            
+            // FACS sliders
+            document.querySelectorAll('[id$="Slider"][data-au]').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const value = parseFloat(e.target.value);
+                    const auId = slider.id.replace('Slider', '');
+                    facsValues[auId] = value;
+                    document.getElementById(auId + 'Value').textContent = value.toFixed(2);
+                });
+            });
+            
+            // Expression sliders
+            ['happy', 'sad', 'angry', 'surprised', 'fear', 'disgust', 'contempt'].forEach(expr => {
+                document.getElementById(expr + 'Slider').addEventListener('input', (e) => {
+                    expressionValues[expr] = parseFloat(e.target.value);
+                    document.getElementById(expr + 'Value').textContent = e.target.value;
+                });
+            });
+            
+            // Input mode tabs
+            document.querySelectorAll('.input-mode-tabs button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    resetAvatar();
+                    
+                    document.querySelectorAll('.input-mode-tabs button').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.input-content').forEach(c => c.classList.remove('active'));
+                    
+                    btn.classList.add('active');
+                    const mode = btn.dataset.mode;
+                    document.getElementById(`${mode}-input`).classList.add('active');
+                    inputMode = mode;
+                    
+                    if (isTracking) {
+                        stopCamera();
+                    }
+                });
+            });
+            
+            // Camera controls
+            document.getElementById('startCameraBtn').addEventListener('click', startCamera);
+            document.getElementById('stopCameraBtn').addEventListener('click', stopCamera);
+            
+            // Video/Audio upload
+            document.getElementById('videoUpload').addEventListener('change', (e) => {
+                document.getElementById('processVideoBtn').disabled = !e.target.files.length;
+            });
+            
+            document.getElementById('audioUpload').addEventListener('change', (e) => {
+                document.getElementById('processAudioBtn').disabled = !e.target.files.length;
+            });
+            
+            document.getElementById('processVideoBtn').addEventListener('click', processVideo);
+            document.getElementById('processAudioBtn').addEventListener('click', processAudio);
+            
+            // Scene controls
+            document.getElementById('bgColor').addEventListener('input', (e) => {
+                scene.background = new THREE.Color(e.target.value);
+            });
+            
+            document.getElementById('lightColor').addEventListener('input', (e) => {
+                directionalLight.color = new THREE.Color(e.target.value);
+            });
+            
+            document.getElementById('lightIntensity').addEventListener('input', (e) => {
+                directionalLight.intensity = parseFloat(e.target.value);
+                document.getElementById('lightIntensityValue').textContent = e.target.value;
+            });
+            
+            document.getElementById('lightAngle').addEventListener('input', (e) => {
+                const angle = parseFloat(e.target.value) * Math.PI / 180;
+                directionalLight.position.x = Math.cos(angle) * 10;
+                directionalLight.position.z = Math.sin(angle) * 10;
+                document.getElementById('lightAngleValue').textContent = e.target.value + '°';
+            });
+            
+            document.getElementById('cameraDistance').addEventListener('input', (e) => {
+                const distance = parseFloat(e.target.value);
+                camera.position.z = distance;
+                document.getElementById('cameraDistanceValue').textContent = e.target.value;
+            });
+            
+            // Camera presets
+            document.querySelectorAll('[data-view]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const view = btn.dataset.view;
+                    const positions = {
+                        face: [0, 1.6, 2],
+                        torso: [0, 1.4, 3],
+                        full: [0, 1.2, 5]
+                    };
+                    const targets = {
+                        face: [0, 1.6, 0],
+                        torso: [0, 1.3, 0],
+                        full: [0, 1.0, 0]
+                    };
+                    
+                    camera.position.set(...positions[view]);
+                    controls.target.set(...targets[view]);
+                    controls.update();
+                    
+                    document.getElementById('cameraDistance').value = positions[view][2];
+                    document.getElementById('cameraDistanceValue').textContent = positions[view][2];
+                });
+            });
+            
+            // Mocap controls
+            document.getElementById('smoothing').addEventListener('input', (e) => {
+                smoothing = parseFloat(e.target.value);
+                document.getElementById('smoothingValue').textContent = e.target.value;
+            });
+
+            document.getElementById('showDebug').addEventListener('change', (e) => {
+                document.getElementById('blendshapesDebug').classList.toggle('active', e.target.checked);
+            });
+            
+            // Motion strength controls
+            document.getElementById('headRotationStrength').addEventListener('input', (e) => {
+                headRotationStrength = parseFloat(e.target.value);
+                e.target.nextElementSibling.textContent = headRotationStrength.toFixed(1);
+            });
+            
+            document.getElementById('neckMotionStrength').addEventListener('input', (e) => {
+                neckMotionStrength = parseFloat(e.target.value);
+                e.target.nextElementSibling.textContent = neckMotionStrength.toFixed(1);
+            });
+            
+            document.getElementById('bodyMotionStrength').addEventListener('input', (e) => {
+                bodyMotionStrength = parseFloat(e.target.value);
+                e.target.nextElementSibling.textContent = bodyMotionStrength.toFixed(1);
+            });
+            
+            // Recording controls
+            document.getElementById('startRecordBtn').addEventListener('click', startRecording);
+            document.getElementById('stopRecordBtn').addEventListener('click', stopRecording);
+            document.getElementById('playbackBtn').addEventListener('click', playRecording);
+            document.getElementById('exportVideoBtn').addEventListener('click', exportVideo);
+            document.getElementById('exportGLBBtn').addEventListener('click', exportGLB);
+            document.getElementById('exportFBXBtn').addEventListener('click', exportFBX);
+            
+            // RPM iframe messages - Enhanced for better avatar loading
+            window.addEventListener('message', (event) => {
+                let json = null;
+                
+                try {
+                    if (typeof event.data === 'string') {
+                        if (event.data.includes('.glb')) {
+                            console.log('Avatar URL received:', event.data);
+                            document.getElementById('avatarUrl').value = event.data;
+                            loadAvatar(event.data, true);
+                            return;
+                        }
+                        json = JSON.parse(event.data);
+                    } else {
+                        json = event.data;
+                    }
+                } catch (e) {
+                    return;
+                }
+                
+                if (json && json.source === 'readyplayerme') {
+                    console.log('RPM Event:', json.eventName, json);
+                    
+                    switch(json.eventName) {
+                        case 'v1.frame.ready':
+                            const iframe = document.getElementById('rpmFrame');
+                            iframe.contentWindow.postMessage(
+                                JSON.stringify({
+                                    target: 'readyplayerme',
+                                    type: 'subscribe',
+                                    eventName: 'v1.**'
+                                }),
+                                '*'
+                            );
+                            updateStatus('Ready Player Me loaded', 'success');
+                            break;
+                            
+                        case 'v1.avatar.exported':
+                            if (json.data && json.data.url) {
+                                const avatarUrl = json.data.url;
+                                document.getElementById('avatarUrl').value = avatarUrl;
+                                loadAvatar(avatarUrl, true);
+                            }
+                            break;
+                    }
+                }
+            });
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            initThreeJS();
+            await initFaceLandmarker();
+            setupEventListeners();
+            updateStatus('Ready to create avatar', 'success');
+            
+            // Pre-request camera permissions for RPM
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true });
+                console.log('Camera permissions granted');
+            } catch (err) {
+                console.log('Camera permissions will be requested when needed');
+            }
+        });
+    </script>
+</body>
+</html>
